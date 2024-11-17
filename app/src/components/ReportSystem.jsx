@@ -33,7 +33,8 @@ const api = {
   async getReports(page = 1, pageSize = 10) {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/reports?page=${page}&pageSize=${pageSize}`
+        //`${API_BASE_URL}/api/entrareports?page=${page}&pageSize=${pageSize}`
+        `${API_BASE_URL}/api/EntraReports/getall`
       );
       if (!response.ok) throw new Error('Reports fetch failed');
       return await response.json();
@@ -46,14 +47,14 @@ const api = {
   async getRoles(page = 1, pageSize = 10, searchTerm = '', sortField = '', sortDirection = '') {
     try {
       const params = new URLSearchParams({
-        page: page.toString(),
-        pageSize: pageSize.toString(),
+        // page: page.toString(),
+        // pageSize: pageSize.toString(),
         searchTerm,
         sortField,
         sortDirection
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/roles?${params}`);
+      const response = await fetch(`${API_BASE_URL}/api/entrarole/getall?${params}`);
       if (!response.ok) throw new Error('Roles fetch failed');
       return await response.json();
     } catch (error) {
@@ -124,8 +125,9 @@ export default function ReportSystem() {
       setLoading(prev => ({ ...prev, reports: true }));
       try {
         const result = await api.getReports(reportsPagination.page, reportsPagination.pageSize);
-        setReports(result.data);
-        setReportsPagination(prev => ({ ...prev, total: result.total }));
+        console.log(result.$values);
+        setReports(prevReports => [...prevReports, ...result.$values]);
+        setReportsPagination(prev => ({ ...prev, total: result.$values.length }));
       } catch (err) {
         setError(prev => ({ ...prev, reports: err.message }));
       } finally {

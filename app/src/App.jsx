@@ -3,7 +3,7 @@ import ReportSystem from './components/ReportSystem'
 
 function App() {
   return (
-    <ReportSystem/>
+    <ReportSystem />
   )
 }
 
