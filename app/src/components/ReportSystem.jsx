@@ -1,5 +1,5 @@
-import { ArrowLeft, FileText, ArrowUpDown, ArrowRight } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft, FileText, ArrowUpDown, ChevronRight, ChevronLeft, MoreHorizontal } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Input } from '@/components/ui/input';
@@ -104,10 +104,124 @@ const api = {
     }
   }
 };
+const PaginationControls = ({
+  currentPage = 1,
+  totalItems = 0,
+  pageSize = 10,
+  onPageChange,
+  onPageSizeChange
+}) => {
+  const totalPages = Math.ceil(totalItems / pageSize);
+
+  // Görüntülenecek sayfa numaralarını hesapla
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5; // Toplam görünecek sayfa sayısı
+
+    if (totalPages <= maxVisiblePages) {
+      // Tüm sayfaları göster
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // İlk sayfa
+      pages.push(1);
+
+      // Mevcut sayfanın etrafındaki sayfalar
+      let start = Math.max(2, currentPage - 1);
+      let end = Math.min(totalPages - 1, currentPage + 1);
+
+      if (currentPage > 3) {
+        pages.push('...');
+      }
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (currentPage < totalPages - 2) {
+        pages.push('...');
+      }
+
+      // Son sayfa
+      if (totalPages > 1) {
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
+  };
+
+  return (
+    <div className="">
+      <div className='flex items-center mt-8 mx-auto' style={{ width: "400px" }}>
+        <div className="flex items-center gap-2">
+          {/* Sol Ok */}
+          <button
+            onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className={`w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100
+            ${currentPage <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 cursor-pointer'}`}
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+
+          {/* Sayfa Numaraları */}
+          {getPageNumbers().map((page, index) => (
+            <React.Fragment key={index}>
+              {page === '...' ? (
+                <span className="px-2">...</span>
+              ) : (
+                <button
+                  onClick={() => onPageChange(page)}
+                  className={`min-w-[32px] h-8 flex items-center justify-center rounded 
+                  ${currentPage === page
+                      ? 'bg-black text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                >
+                  {page}
+                </button>
+              )}
+            </React.Fragment>
+          ))}
+
+          {/* Sağ Ok */}
+          <button
+            onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className={`w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100
+            ${currentPage >= totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 cursor-pointer'}`}
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Page Size Seçimi */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">Per page:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function ReportSystem() {
   // State tanımlamaları
-  const [currentPage, setCurrentPage] = useState('list');
+  const [currentPage, setCurrentPage] = useState("list");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedReportId, setSelectedReportId] = useState(null);
   const [selectedRole, setSelectedRole] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -312,42 +426,14 @@ export default function ReportSystem() {
     console.log('FilteredAndSortedUsers Changed:', filteredAndSortedUsers);
   }, [filteredAndSortedUsers]);
 
+  const totalPages = 10;
+
   // Pagination component
-  const PaginationControls = ({ pagination, onChange, loading }) => {
-    const totalPages = Math.ceil(pagination.total / pagination.pageSize);
-    return (
-      <Pagination className="mt-4">
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              onClick={() => onChange(Math.max(1, pagination.page - 1))}
-              disabled={pagination.page === 1 || loading}
-            />
-          </PaginationItem>
 
-          {[...Array(totalPages)].map((_, i) => (
-            <PaginationItem key={i + 1}>
-              <PaginationLink
-                onClick={() => onChange(i + 1)}
-                isActive={pagination.page === i + 1}
-                disabled={loading}
-              >
-                {i + 1}
-              </PaginationLink>
-            </PaginationItem>
-          ))}
-
-          <PaginationItem>
-            <PaginationNext
-              onClick={() => onChange(Math.min(totalPages, pagination.page + 1))}
-              disabled={pagination.page === totalPages || loading}
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
-    );
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    setPage(1);
   };
-
   // Loading component
   const LoadingSpinner = () => (
     <div className="flex justify-center items-center p-4">
@@ -408,9 +494,15 @@ export default function ReportSystem() {
               ))}
             </div>
             <PaginationControls
-              pagination={reportsPagination}
-              onChange={(page) => setReportsPagination(prev => ({ ...prev, page }))}
-              loading={loading.reports}
+              // pagination={paginationData}
+              // // onChange={(page) => setReportsPagination(prev => ({ ...prev, page }))}
+              // onChange={(page) => setReportsPagination(prev => ({ ...prev, page }))}
+              // loading={loading.reports}
+              currentPage={page}
+              totalItems={100}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
             />
           </>
         )}
