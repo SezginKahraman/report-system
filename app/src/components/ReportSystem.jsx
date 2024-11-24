@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -54,11 +53,32 @@ const api = {
         sortDirection
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/entrarole/getall?${params}`);
+      const response = await fetch(`${API_BASE_URL}/api/entrarolestats/getall?${params}`);
       if (!response.ok) throw new Error('Roles fetch failed');
       return await response.json();
     } catch (error) {
       console.error('Error fetching roles:', error);
+      throw error;
+    }
+  },
+
+  async getRoleDetails(azRoleId, page = 1, pageSize = 10, searchTerm = '', sortField = '', sortDirection = '') {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        searchTerm,
+        sortField,
+        sortDirection
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/entraroles/get?id=${azRoleId}&withInclude=true`
+      );
+      if (!response.ok) throw new Error('User roles fetch failed');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user roles:', error);
       throw error;
     }
   },
@@ -98,18 +118,18 @@ export default function ReportSystem() {
   // Pagination states
   const [reportsPagination, setReportsPagination] = useState({ page: 1, pageSize: 10, total: 0 });
   const [rolesPagination, setRolesPagination] = useState({ page: 1, pageSize: 10, total: 0 });
-  const [userRolesPagination, setUserRolesPagination] = useState({ page: 1, pageSize: 10, total: 0 });
+  const [userRolesPagination, setRoleDetailsPagination] = useState({ page: 1, pageSize: 10, total: 0 });
 
   // Data states
   const [reports, setReports] = useState([]);
   const [roleData, setRoleData] = useState([]);
-  const [userRolesData, setUserRolesData] = useState([]);
+  const [roleUsers, setRoleUsers] = useState([]);
 
   // Loading states
   const [loading, setLoading] = useState({
     reports: false,
     roles: false,
-    userRoles: false
+    roleDetails: false
   });
 
   // Error states
@@ -125,7 +145,6 @@ export default function ReportSystem() {
       setLoading(prev => ({ ...prev, reports: true }));
       try {
         const result = await api.getReports(reportsPagination.page, reportsPagination.pageSize);
-        console.log(result.$values);
         setReports(prevReports => [...prevReports, ...result.$values]);
         setReportsPagination(prev => ({ ...prev, total: result.$values.length }));
       } catch (err) {
@@ -152,8 +171,8 @@ export default function ReportSystem() {
           sortConfig.key,
           sortConfig.direction
         );
-        setRoleData(result.data);
-        setRolesPagination(prev => ({ ...prev, total: result.total }));
+        setRoleData(result.$values);
+        setRolesPagination(prev => ({ ...prev, total: result.$values.length }));
       } catch (err) {
         setError(prev => ({ ...prev, roles: err.message }));
       } finally {
@@ -162,25 +181,48 @@ export default function ReportSystem() {
     }
 
     fetchRoles();
+    setTimeout(0);
   }, [currentPage, rolesPagination.page, rolesPagination.pageSize, searchTerm, sortConfig]);
 
   // User roles fetching
   useEffect(() => {
-    async function fetchUserRoles() {
+    async function fetchRoleDetails() {
       if (!selectedRole) return;
 
-      setLoading(prev => ({ ...prev, userRoles: true }));
+      setLoading(prev => ({ ...prev, roleDetails: true }));
       try {
-        const result = await api.getUserRoles(
-          selectedRole.roleName,
+        const result = await api.getRoleDetails(
+          selectedRole.azRoleId,
           userRolesPagination.page,
           userRolesPagination.pageSize,
           userSearchTerm,
           userSortConfig.key,
           userSortConfig.direction
         );
-        setUserRolesData(result.data);
-        setUserRolesPagination(prev => ({ ...prev, total: result.total }));
+
+        const users = {
+          azRoleId: result.azRoleId,
+          azRoleName: result.azRoleName,
+          status: result.azStatus,
+          createdDate: result.dbCreatedDate,
+          updatedDate: result.dbModifiedDate,
+          azRoleDescription: result.azRoleDescription,
+          entraUserAccounts: result.entraUserAccounts?.$values?.map(user => ({
+            id: user.dbUserAccountId,
+            azDisplayName: user.azDisplayName,
+            azAssignment: user.azAssignment,
+            azUpn: user.azUpn,
+            dbUserAccountId: user.dbUserAccountId,
+            roleId: user.azRoleId,
+            displayName: user.azDisplayName,
+            upn: user.azUpn,
+            azLastActivated: user.azLastActivated,
+            azGroupId: user.azGroupId,
+            azType: user.azType,
+          })) || []
+        };
+        setRoleUsers(users); // States works asenkronous, so we can't use it directly after setRoleUsers
+        setRoleDetailsPagination(prev => ({ ...prev, total: users.entraUserAccounts.length }));
       } catch (err) {
         setError(prev => ({ ...prev, userRoles: err.message }));
       } finally {
@@ -188,60 +230,9 @@ export default function ReportSystem() {
       }
     }
 
-    fetchUserRoles();
+    fetchRoleDetails();
+    console.log("Selected Role Changed: fetchRole is worked.", selectedRole);
   }, [selectedRole, userRolesPagination.page, userRolesPagination.pageSize, userSearchTerm, userSortConfig]);
-
-  // const reports = [
-  //   {
-  //     id: 1,
-  //     name: "EntraID Privilege Role Dashboard Report",
-  //     description: "Role assignments and eligibility analysis",
-  //     date: "2024-03-15",
-  //     type: "Security"
-  //   }
-  // ];
-
-  // const roleData = [
-  //   { id: 1, roleName: "Global Administrator", assigned: true, eligible: false },
-  //   { id: 2, roleName: "Security Administrator", assigned: true, eligible: true },
-  //   { id: 3, roleName: "User Administrator", assigned: false, eligible: true },
-  //   { id: 4, roleName: "License Administrator", assigned: true, eligible: true },
-  //   { id: 5, roleName: "Admin", assigned: false, eligible: false }
-  // ];
-
-  // const userRolesData = {
-  //   "Global Administrator": [
-  //     {
-  //       id: 1,
-  //       roleName: "Global Administrator",
-  //       userName: "John Smith",
-  //       userPrincipalName: "john.smith@company.com",
-  //       type: "Group Membership",
-  //       assignment: true,
-  //       lastActivated: "2024-03-15T14:30:00"
-  //     },
-  //     {
-  //       id: 2,
-  //       roleName: "Global Administrator",
-  //       userName: "Emma Wilson",
-  //       userPrincipalName: "emma.wilson@company.com",
-  //       type: "Directly Assigned",
-  //       assignment: true,
-  //       lastActivated: "2024-03-14T09:15:00"
-  //     }
-  //   ],
-  //   "Security Administrator": [
-  //     {
-  //       id: 3,
-  //       roleName: "Security Administrator",
-  //       userName: "Michael Brown",
-  //       userPrincipalName: "michael.brown@company.com",
-  //       type: "Directly Assigned",
-  //       assignment: true,
-  //       lastActivated: "2024-03-13T16:45:00"
-  //     }
-  //   ]
-  // };
 
   const handleSort = (key, isUserTable = false) => {
     if (isUserTable) {
@@ -278,18 +269,14 @@ export default function ReportSystem() {
   }, [roleData, searchTerm, sortConfig]);
 
   const filteredAndSortedUsers = useMemo(() => {
-    if (!selectedRole) return [];
-
-    let users = userRolesData[selectedRole.roleName] || [];
-
-    let filtered = users.filter(user =>
-      user.userName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-      user.userPrincipalName.toLowerCase().includes(userSearchTerm.toLowerCase())
+    let filtered = roleUsers.entraUserAccounts?.filter(user =>
+      user.displayName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      user.azDisplayName.toLowerCase().includes(userSearchTerm.toLowerCase())
     );
 
     if (userSortConfig.key) {
       filtered.sort((a, b) => {
-        if (['roleName', 'userName', 'userPrincipalName', 'type'].includes(userSortConfig.key)) {
+        if (['roleName', 'displayName', 'azDisplayName', 'type'].includes(userSortConfig.key)) {
           const compareResult = a[userSortConfig.key].localeCompare(b[userSortConfig.key]);
           return userSortConfig.direction === 'asc' ? compareResult : -compareResult;
         } else if (userSortConfig.key === 'lastActivated') {
@@ -304,7 +291,7 @@ export default function ReportSystem() {
     }
 
     return filtered;
-  }, [selectedRole, userSearchTerm, userSortConfig]);
+  }, [roleUsers, userSearchTerm, userSortConfig]); // when the setRoleUsers is set, call this function
 
   const pieData = useMemo(() => {
     const assignedCount = roleData.filter(role => role.assigned).length;
@@ -315,6 +302,15 @@ export default function ReportSystem() {
       { name: 'Eligible', value: eligibleCount }
     ];
   }, [roleData]);
+
+
+  useEffect(() => {
+    console.log('RoleUsers Changed:', roleUsers);
+  }, [roleUsers]);
+
+  useEffect(() => {
+    console.log('FilteredAndSortedUsers Changed:', filteredAndSortedUsers);
+  }, [filteredAndSortedUsers]);
 
   // Pagination component
   const PaginationControls = ({ pagination, onChange, loading }) => {
@@ -368,7 +364,7 @@ export default function ReportSystem() {
 
   if (currentPage === 'list') {
     return (
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto py-12">
         <h1 className="text-3xl font-bold mb-6" style={{ color: colors.primary }}>Reports</h1>
         {loading.reports ? (
           <LoadingSpinner />
@@ -434,6 +430,7 @@ export default function ReportSystem() {
           {selectedRole ? `User Roles - ${selectedRole.roleName}` : reports[0].name}
         </h1>
 
+        {/* Header of Card */}
         <div className="flex gap-2">
           {selectedRole ? (
             <Button
@@ -457,11 +454,11 @@ export default function ReportSystem() {
         </div>
       </div>
 
+      {/* Role Card */}
       {!selectedRole ? (
         <div className="flex flex-col lg:flex-row gap-6">
           <Card className="flex-1">
             <CardContent className="p-6">
-
               {loading.roles ? (
                 <LoadingSpinner />
               ) : error.roles ? (
@@ -476,8 +473,10 @@ export default function ReportSystem() {
                       className="max-w-xs"
                     />
                   </div>
+                  {/* Role Table */}
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
+                      {/* Header */}
                       <thead>
                         <tr className="bg-gray-50">
                           <th className="p-3 text-left border">
@@ -509,6 +508,7 @@ export default function ReportSystem() {
                           </th>
                         </tr>
                       </thead>
+                      {/* Body */}
                       <tbody>
                         {filteredAndSortedRoles.map((role) => (
                           <tr
@@ -544,6 +544,7 @@ export default function ReportSystem() {
             </CardContent>
           </Card>
 
+          {/* chart  */}
           <Card className="lg:w-[400px]">
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold mb-4">Role Distribution</h2>
@@ -595,7 +596,7 @@ export default function ReportSystem() {
                         <th className="p-3 text-left border">
                           <button
                             className="flex items-center gap-2"
-                            onClick={() => handleSort('userName', true)}
+                            onClick={() => handleSort('displayName', true)}
                           >
                             User Name
                             <ArrowUpDown className="h-4 w-4" />
@@ -604,7 +605,7 @@ export default function ReportSystem() {
                         <th className="p-3 text-left border">
                           <button
                             className="flex items-center gap-2"
-                            onClick={() => handleSort('userPrincipalName', true)}
+                            onClick={() => handleSort('azDisplayName', true)}
                           >
                             User Principal Name
                             <ArrowUpDown className="h-4 w-4" />
@@ -613,7 +614,7 @@ export default function ReportSystem() {
                         <th className="p-3 text-left border">
                           <button
                             className="flex items-center gap-2"
-                            onClick={() => handleSort('type', true)}
+                            onClick={() => handleSort('azType', true)}
                           >
                             Type
                             <ArrowUpDown className="h-4 w-4" />
@@ -622,7 +623,7 @@ export default function ReportSystem() {
                         <th className="p-3 text-left border">
                           <button
                             className="flex items-center gap-2"
-                            onClick={() => handleSort('assignment', true)}
+                            onClick={() => handleSort('azAssignment', true)}
                           >
                             Assignment
                             <ArrowUpDown className="h-4 w-4" />
@@ -640,26 +641,26 @@ export default function ReportSystem() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredAndSortedUsers.map((user) => (
+                      {filteredAndSortedUsers?.map((user) => (
                         <tr key={user.id}>
-                          <td className="p-3 border">{user.userName}</td>
-                          <td className="p-3 border">{user.userPrincipalName}</td>
+                          <td className="p-3 border">{user.displayName}</td>
+                          <td className="p-3 border">{user.azDisplayName}</td>
                           <td className="p-3 border">
-                            <span className={`px-2 py-1 rounded ${user.type === 'Directly Assigned'
+                            <span className={`px-2 py-1 rounded ${user.azType === 'Directly Assigned'
                               ? 'bg-blue-100 text-blue-800'
                               : 'bg-purple-100 text-purple-800'
                               }`}>
-                              {user.type}
+                              {user.azType}
                             </span>
                           </td>
                           <td className="p-3 border">
-                            <span className={`px-2 py-1 rounded ${user.assignment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            <span className={`px-2 py-1 rounded ${user.azAssignment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                               }`}>
-                              {user.assignment ? 'Yes' : 'No'}
+                              {user.azAssignment ? 'Yes' : 'No'}
                             </span>
                           </td>
                           <td className="p-3 border">
-                            {new Date(user.lastActivated).toLocaleString()}
+                            {new Date(user.azLastActivated).toLocaleString()}
                           </td>
                         </tr>
                       ))}
@@ -668,7 +669,7 @@ export default function ReportSystem() {
                 </div>
                 <PaginationControls
                   pagination={userRolesPagination}
-                  onChange={(page) => setUserRolesPagination(prev => ({ ...prev, page }))}
+                  onChange={(page) => setRoleDetailsPagination(prev => ({ ...prev, page }))}
                   loading={loading.userRoles}
                 />
               </>
