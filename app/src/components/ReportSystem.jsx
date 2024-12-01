@@ -226,8 +226,10 @@ export default function ReportSystem() {
   const [selectedRole, setSelectedRole] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [groupSearchTerm, setGroupSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
   const [userSortConfig, setUserSortConfig] = useState({ key: '', direction: 'asc' });
+  const [groupSortConfig, setGroupSortConfig] = useState({ key: '', direction: 'asc' });
 
   // Pagination states
   const [reportsPagination, setReportsPagination] = useState({ page: 1, pageSize: 10, total: 0 });
@@ -333,8 +335,15 @@ export default function ReportSystem() {
             azLastActivated: user.azLastActivated,
             azGroupId: user.azGroupId,
             azType: user.azType,
+          })) || [],
+          entraGroupAssignments: result.entraGroupAssignments?.$values?.map(group => ({
+            azAssignment: group.azAssignmentType,
+            azGroupId: group.azGroupId,
+            azStatus: group.azStatus,
+            azGroup: group?.azGroup || null,
           })) || []
         };
+
         setRoleUsers(users); // States works asenkronous, so we can't use it directly after setRoleUsers
         setRoleDetailsPagination(prev => ({ ...prev, total: users.entraUserAccounts.length }));
       } catch (err) {
@@ -345,7 +354,6 @@ export default function ReportSystem() {
     }
 
     fetchRoleDetails();
-    console.log("Selected Role Changed: fetchRole is worked.", selectedRole);
   }, [selectedRole, userRolesPagination.page, userRolesPagination.pageSize, userSearchTerm, userSortConfig]);
 
   const handleSort = (key, isUserTable = false) => {
@@ -382,6 +390,30 @@ export default function ReportSystem() {
     return filtered;
   }, [roleData, searchTerm, sortConfig]);
 
+  const filteredAndSortedGroups = useMemo(() => {
+    let filtered = roleUsers.entraGroupAssignments?.filter(group =>
+      group.azGroup?.azGroupName.toLowerCase().includes(groupSearchTerm.toLowerCase()) ||
+      group.azAssignment.toLowerCase().includes(groupSearchTerm.toLowerCase())
+    );
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        if (['groupName', 'azAssignment'].includes(sortConfig.key)) {
+          const compareResult = a[sortConfig.key].localeCompare(b[sortConfig.key]);
+          return sortConfig.direction === 'asc' ? compareResult : -compareResult;
+        } else if (sortConfig.key === 'lastActivated') {
+          const dateA = new Date(a.lastActivated);
+          const dateB = new Date(b.lastActivated);
+          return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
+        } else {
+          const compareResult = (a[sortConfig.key] === b[sortConfig.key]) ? 0 : a[sortConfig.key] ? -1 : 1;
+          return sortConfig.direction === 'asc' ? compareResult : -compareResult;
+        }
+      });
+    }
+    console.log(filtered);
+    return filtered;
+  }, [roleUsers, groupSearchTerm, sortConfig]); // when the setRoleUsers is set, call this function
+
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = roleUsers.entraUserAccounts?.filter(user =>
       user.displayName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
@@ -390,7 +422,7 @@ export default function ReportSystem() {
 
     if (userSortConfig.key) {
       filtered.sort((a, b) => {
-        if (['roleName', 'displayName', 'azDisplayName', 'type'].includes(userSortConfig.key)) {
+        if (['displayName', 'upn', 'type'].includes(userSortConfig.key)) {
           const compareResult = a[userSortConfig.key].localeCompare(b[userSortConfig.key]);
           return userSortConfig.direction === 'asc' ? compareResult : -compareResult;
         } else if (userSortConfig.key === 'lastActivated') {
@@ -416,15 +448,6 @@ export default function ReportSystem() {
       { name: 'Eligible', value: eligibleCount }
     ];
   }, [roleData]);
-
-
-  useEffect(() => {
-    console.log('RoleUsers Changed:', roleUsers);
-  }, [roleUsers]);
-
-  useEffect(() => {
-    console.log('FilteredAndSortedUsers Changed:', filteredAndSortedUsers);
-  }, [filteredAndSortedUsers]);
 
   const totalPages = 10;
 
@@ -676,6 +699,70 @@ export default function ReportSystem() {
                 <div className="mb-4">
                   <Input
                     placeholder="Search by user name or email..."
+                    value={groupSearchTerm}
+                    onChange={(e) => setGroupSearchTerm(e.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="p-3 text-left border">
+                          <button
+                            className="flex items-center gap-2"
+                            onClick={() => handleSort('groupName', true)}
+                          >
+                            Gruoup Name
+                            <ArrowUpDown className="h-4 w-4" />
+                          </button>
+                        </th>
+                        <th className="p-3 text-left border">
+                          <button
+                            className="flex items-center gap-2"
+                            onClick={() => handleSort('azAssignment', true)}
+                          >
+                            Assignment
+                            <ArrowUpDown className="h-4 w-4" />
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAndSortedGroups?.map((group) => (
+                        <tr key={group.id}>
+                          <td className="p-3 border">{group.azGroup.azGroupName}</td>
+                          {/* <td className="p-3 border">
+                            <span className={`px-2 py-1 rounded ${user.azType === 'Directly Assigned'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-purple-100 text-purple-800'
+                              }`}>
+                              {user.azType}
+                            </span>
+                          </td> */}
+                          <td className="p-3 border">
+                            <span className={`px-2 py-1 rounded ${group.azAssignment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                              {group.azAssignment ? 'Yes' : 'No'}
+                            </span>
+                          </td>
+                          {/* <td className="p-3 border">
+                            {new Date(user.azLastActivated).toLocaleString()}
+                          </td> */}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <PaginationControls
+                  pagination={userRolesPagination}
+                  onChange={(page) => setRoleDetailsPagination(prev => ({ ...prev, page }))}
+                  loading={loading.userRoles}
+                />
+                <br />
+                <div className="mb-4">
+                  <Input
+                    placeholder="Search by user name or email..."
                     value={userSearchTerm}
                     onChange={(e) => setUserSearchTerm(e.target.value)}
                     className="max-w-xs"
@@ -697,9 +784,9 @@ export default function ReportSystem() {
                         <th className="p-3 text-left border">
                           <button
                             className="flex items-center gap-2"
-                            onClick={() => handleSort('azDisplayName', true)}
+                            onClick={() => handleSort('upn', true)}
                           >
-                            User Principal Name
+                            UPN
                             <ArrowUpDown className="h-4 w-4" />
                           </button>
                         </th>
@@ -736,7 +823,7 @@ export default function ReportSystem() {
                       {filteredAndSortedUsers?.map((user) => (
                         <tr key={user.id}>
                           <td className="p-3 border">{user.displayName}</td>
-                          <td className="p-3 border">{user.azDisplayName}</td>
+                          <td className="p-3 border">{user.upn}</td>
                           <td className="p-3 border">
                             <span className={`px-2 py-1 rounded ${user.azType === 'Directly Assigned'
                               ? 'bg-blue-100 text-blue-800'
