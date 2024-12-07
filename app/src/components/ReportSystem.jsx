@@ -1,9 +1,15 @@
-import { ArrowLeft, FileText, ArrowUpDown, ChevronRight, ChevronLeft, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, FileText, ArrowUpDown, ChevronRight, ChevronLeft, MoreHorizontal, X } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Pagination,
   PaginationContent,
@@ -12,6 +18,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import ReactDOM from 'react-dom';
+import GroupUsersComponent from './GroupUsersComponent';
 
 const colors = {
   primary: '#003507',
@@ -100,6 +108,18 @@ const api = {
       return await response.json();
     } catch (error) {
       console.error('Error fetching user roles:', error);
+      throw error;
+    }
+  },
+
+  async getGroupUsers(groupId) {
+    try {
+      console.log(groupId);
+      const response = await fetch(`${API_BASE_URL}/api/EntraUserAccounts/getbygroupid?groupId=${groupId}`);
+      if (!response.ok) throw new Error('Group users fetch failed');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching group users:', error);
       throw error;
     }
   }
@@ -235,6 +255,12 @@ export default function ReportSystem() {
   const [reportsPagination, setReportsPagination] = useState({ page: 1, pageSize: 10, total: 0 });
   const [rolesPagination, setRolesPagination] = useState({ page: 1, pageSize: 10, total: 0 });
   const [userRolesPagination, setRoleDetailsPagination] = useState({ page: 1, pageSize: 10, total: 0 });
+
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupUsers, setGroupUsers] = useState([]);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [groupUsersLoading, setGroupUsersLoading] = useState(false);
+  const [groupUsersError, setGroupUsersError] = useState(null);
 
   // Data states
   const [reports, setReports] = useState([]);
@@ -533,6 +559,89 @@ export default function ReportSystem() {
     );
   }
 
+  const fetchGroupUsers = async (groupId) => {
+    setGroupUsersLoading(true);
+    setGroupUsersError(null);
+    try {
+      const result = await api.getGroupUsers(groupId);
+      console.log('API Response:', result); // Debug için
+      // API yanıtını doğru formata dönüştürüyoruz
+      const formattedUsers = Array.isArray(result.$values) ? result.$values : [];
+      setGroupUsers(formattedUsers);
+    } catch (err) {
+      console.error('Error in fetchGroupUsers:', err);
+      setGroupUsersError(err.message);
+    } finally {
+      setGroupUsersLoading(false);
+    }
+  };
+
+  const handleGroupClick = async (group) => {
+    console.log(group);
+    setSelectedGroup(group);
+    setIsGroupModalOpen(true);
+    await fetchGroupUsers(group.azGroup.azGroupId);
+  };
+
+  const GroupUsersModal = () => {
+    if (!isGroupModalOpen) return null;
+
+    return (
+      <GroupUsersComponent groupUsers={groupUsers} />
+    );
+  };
+
+  // Grup tablosundaki satırları güncelliyoruz
+  const renderGroupTable = () => (
+    <table className="w-full border-collapse">
+      <thead>
+        <tr className="bg-gray-50">
+          <th className="p-3 text-left border">
+            <button
+              className="flex items-center gap-2"
+              onClick={() => handleSort('groupName', true)}
+            >
+              Group Name
+              <ArrowUpDown className="h-4 w-4" />
+            </button>
+          </th>
+          <th className="p-3 text-left border">
+            <button
+              className="flex items-center gap-2"
+              onClick={() => handleSort('azAssignment', true)}
+            >
+              Assignment
+              <ArrowUpDown className="h-4 w-4" />
+            </button>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {filteredAndSortedGroups?.map((group) => (
+          <tr
+            key={group.azGroupId}
+            onClick={() => handleGroupClick(group)}
+            className="cursor-pointer hover:bg-gray-50"
+          >
+            <td className="p-3 border">{group.azGroup.azGroupName}</td>
+            <td className="p-3 border">
+              <span className={`px-2 py-1 rounded ${group.azAssignment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                {group.azAssignment ? 'Yes' : 'No'}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  const backToRoles = () => {
+    setSelectedRole(null);
+    setSelectedGroup(null);
+    setIsGroupModalOpen(false);
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4">
       <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-lg shadow">
@@ -550,7 +659,7 @@ export default function ReportSystem() {
           {selectedRole ? (
             <Button
               variant="outline"
-              onClick={() => setSelectedRole(null)}
+              onClick={backToRoles}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -635,13 +744,13 @@ export default function ReportSystem() {
                             <td className="p-3 border">
                               <span className={`px-2 py-1 rounded ${role.assigned ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                 }`}>
-                                {role.assigned ? 'Yes' : 'No'}
+                                {role.assigned ? role.assigned : '0'}
                               </span>
                             </td>
                             <td className="p-3 border">
                               <span className={`px-2 py-1 rounded ${role.eligible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                 }`}>
-                                {role.eligible ? 'Yes' : 'No'}
+                                {role.eligible && role.eligible > 0 ? role.eligible : '0'}
                               </span>
                             </td>
                           </tr>
@@ -705,60 +814,14 @@ export default function ReportSystem() {
                   />
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="p-3 text-left border">
-                          <button
-                            className="flex items-center gap-2"
-                            onClick={() => handleSort('groupName', true)}
-                          >
-                            Gruoup Name
-                            <ArrowUpDown className="h-4 w-4" />
-                          </button>
-                        </th>
-                        <th className="p-3 text-left border">
-                          <button
-                            className="flex items-center gap-2"
-                            onClick={() => handleSort('azAssignment', true)}
-                          >
-                            Assignment
-                            <ArrowUpDown className="h-4 w-4" />
-                          </button>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAndSortedGroups?.map((group) => (
-                        <tr key={group.id}>
-                          <td className="p-3 border">{group.azGroup.azGroupName}</td>
-                          {/* <td className="p-3 border">
-                            <span className={`px-2 py-1 rounded ${user.azType === 'Directly Assigned'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-purple-100 text-purple-800'
-                              }`}>
-                              {user.azType}
-                            </span>
-                          </td> */}
-                          <td className="p-3 border">
-                            <span className={`px-2 py-1 rounded ${group.azAssignment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                              {group.azAssignment ? 'Yes' : 'No'}
-                            </span>
-                          </td>
-                          {/* <td className="p-3 border">
-                            {new Date(user.azLastActivated).toLocaleString()}
-                          </td> */}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {renderGroupTable()}
                 </div>
                 <PaginationControls
                   pagination={userRolesPagination}
                   onChange={(page) => setRoleDetailsPagination(prev => ({ ...prev, page }))}
                   loading={loading.userRoles}
                 />
+                <GroupUsersModal />
                 <br />
                 <div className="mb-4">
                   <Input

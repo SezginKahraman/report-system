@@ -14,4 +14,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./"),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1600, // Varsayılan 500 kB'dir, bunu 1600 kB olarak ayarlıyoruz
+  },
 });
