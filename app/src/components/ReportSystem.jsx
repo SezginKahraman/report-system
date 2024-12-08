@@ -83,6 +83,7 @@ const api = {
       const response = await fetch(
         `${API_BASE_URL}/api/entraroles/get?id=${azRoleId}&withInclude=true`
       );
+      console.log(response);
       if (!response.ok) throw new Error('User roles fetch failed');
       return await response.json();
     } catch (error) {
@@ -441,8 +442,9 @@ export default function ReportSystem() {
   }, [roleUsers, groupSearchTerm, sortConfig]); // when the setRoleUsers is set, call this function
 
   const filteredAndSortedUsers = useMemo(() => {
+    console.log(roleUsers.entraUserAccounts);
     let filtered = roleUsers.entraUserAccounts?.filter(user =>
-      user.displayName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      user.azDisplayName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
       user.azDisplayName.toLowerCase().includes(userSearchTerm.toLowerCase())
     );
 
@@ -885,7 +887,7 @@ export default function ReportSystem() {
                     <tbody>
                       {filteredAndSortedUsers?.map((user) => (
                         <tr key={user.id}>
-                          <td className="p-3 border">{user.displayName}</td>
+                          <td className="p-3 border">{user.azDisplayName}</td>
                           <td className="p-3 border">{user.upn}</td>
                           <td className="p-3 border">
                             <span className={`px-2 py-1 rounded ${user.azType === 'Directly Assigned'

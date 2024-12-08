@@ -270,7 +270,7 @@ export default function ReportSystem() {
         if (!selectedRole) return [];
 
         let filtered = roleUsers.entraUserAccounts?.filter(user =>
-            user.displayName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+            user.azDisplayName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
             user.azDisplayName.toLowerCase().includes(userSearchTerm.toLowerCase())
         );
 
@@ -526,7 +526,7 @@ export default function ReportSystem() {
                                         <tbody>
                                             {filteredAndSortedUsers.map((user) => (
                                                 <tr key={user.id}>
-                                                    <td className="p-3 border">{user.displayName}</td>
+                                                    <td className="p-3 border">{user.azDisplayName}</td>
                                                     <td className="p-3 border">{user.azDisplayName}</td>
                                                     <td className="p-3 border">
                                                         <span className={`px-2 py-1 rounded ${user.azType === 'Directly Assigned'
